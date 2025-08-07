@@ -1,5 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as fs from 'fs';
+import { Worker } from 'worker_threads';
+import * as path from 'path';
 import {
   UploadResponseDto,
   PatientQueryDto,
@@ -19,6 +21,34 @@ export class FileService {
     private readonly patientService: PatientService,
     private readonly sharedMapService: SharedMapService,
   ) {}
+
+  private runWorker(
+    validEntities: Patient[],
+  ): Promise<Map<string, Map<string, Patient>>> {
+    return new Promise((resolve, reject) => {
+      const worker = new Worker(path.join(__dirname, 'file.worker.js'));
+
+      worker.on('message', (result) => {
+        const resultMap = new Map<string, Map<string, Patient>>();
+        for (const [key, value] of result) {
+          const innerMap = new Map<string, Patient>();
+          for (const [innerKey, innerValue] of value) {
+            innerMap.set(innerKey as string, innerValue as Patient);
+          }
+          resultMap.set(key as string, innerMap);
+        }
+        resolve(resultMap);
+      });
+      worker.on('error', reject);
+      worker.on('exit', (code) => {
+        if (code !== 0) {
+          reject(new Error(`Worker stopped with exit code ${code}`));
+        }
+      });
+
+      worker.postMessage({ validEntities });
+    });
+  }
 
   async processUpload(filePath: string): Promise<UploadResponseDto> {
     const time = Date.now();
@@ -43,113 +73,7 @@ export class FileService {
       const toInsertMap: Map<string, Patient[]> = new Map();
       const toDeleteMap: Map<string, Patient> = new Map();
 
-      const excelDataMap = new Map<string, Map<string, Patient>>();
-
-      for (const entity of validEntities) {
-        Logger.log(
-          `처리 중 - 이름: ${entity.name}, 전화번호: ${entity.phone}, 차트: ${entity.chart}`,
-          'FileService',
-        );
-        const key = entity.name + '|' + entity.phone;
-        if (excelDataMap.has(key)) {
-          // 이전 행 중에 같은 이름과 전화번호가 있는 경우
-          const dataMap = excelDataMap.get(key) as Map<string, Patient>;
-          if (dataMap.has(entity.chart)) {
-            // 이름과 전화번호가 같고 동일한 차트 명이 있는 경우
-            const existingPatient = dataMap.get(entity.chart) as Patient;
-            const newEntity: Patient = {
-              ...existingPatient,
-              name: entity.name || existingPatient.name,
-              phone: entity.phone || existingPatient.phone,
-              chart: entity.chart || existingPatient.chart,
-              rrm: entity.rrm || existingPatient.rrm,
-              address: entity.address || existingPatient.address,
-              memo: entity.memo || existingPatient.memo,
-              rowNum: entity.rowNum,
-              fileName: existingPatient.fileName,
-            };
-            dataMap.set(newEntity.chart, newEntity);
-            excelDataMap.set(key, dataMap);
-            Logger.log(
-              `이름과 전화번호가 같고 동일한 차트 명이 있는 경우: ${newEntity.name}, ${newEntity.phone}, ${newEntity.chart}`,
-              'FileService',
-            );
-          } else {
-            // 이름과 전화번호가 같지만 동일한 차트 명이 없는 경우
-            if (dataMap.has('')) {
-              // 기존 null & 현재 chart => 병합, delete, insert
-              const existingPatient = dataMap.get('') as Patient;
-
-              dataMap.delete(existingPatient.chart);
-
-              const newEntity: Patient = {
-                ...existingPatient,
-                name: entity.name || existingPatient.name,
-                phone: entity.phone || existingPatient.phone,
-                chart: entity.chart || existingPatient.chart,
-                rrm: entity.rrm || existingPatient.rrm,
-                address: entity.address || existingPatient.address,
-                memo: entity.memo || existingPatient.memo,
-                rowNum: entity.rowNum,
-                fileName: existingPatient.fileName,
-              };
-              dataMap.set(newEntity.chart, newEntity);
-              excelDataMap.set(key, dataMap);
-              Logger.log(
-                `이름과 전화번호가 같지만 차트 명이 다른 경우 (기존 null, 현재 chart): ${newEntity.name}, ${newEntity.phone}, ${newEntity.chart}`,
-                'FileService',
-              );
-            } else {
-              // 이름과 전화번호가 같지만 차트 명이 다른 경우
-              if (!entity.chart) {
-                // 기존 chart & 현재 null => 가장 최근 pop, 병합, update
-                const valuesArray = [...dataMap.values()];
-                const existingPatient = valuesArray.pop() as Patient;
-
-                const newEntity: Patient = {
-                  ...existingPatient,
-                  name: entity.name || existingPatient.name,
-                  phone: entity.phone || existingPatient.phone,
-                  chart: existingPatient.chart, // 기존 차트로 병합
-                  rrm: entity.rrm || existingPatient.rrm,
-                  address: entity.address || existingPatient.address,
-                  memo: entity.memo || existingPatient.memo,
-                  rowNum: entity.rowNum,
-                  fileName: existingPatient.fileName,
-                };
-                dataMap.set(newEntity.chart, newEntity);
-                excelDataMap.set(key, dataMap);
-                Logger.log(
-                  `이름과 전화번호가 같지만 차트 명이 없는 경우 (기존 chart, 현재 null): ${newEntity.name}, ${newEntity.phone}, ${newEntity.chart}`,
-                  'FileService',
-                );
-              } else {
-                // 이름과 전화번호가 같지만 차트 명이 다른 경우
-                // 기존 chart1 & 현재 chart2 => insert
-                Logger.log(
-                  `이름과 전화번호가 같지만 차트 명이 다른 경우 (기존 chart1, 현재 chart2): ${entity.name}, ${entity.phone}, ${entity.chart}`,
-                  'FileService',
-                );
-                dataMap.set(entity.chart, entity);
-                Logger.log(
-                  `새로운 차트 명이 추가됨: ${entity.chart}, ${dataMap.size}개의 차트 명`,
-                  'FileService',
-                );
-                excelDataMap.set(key, dataMap);
-              }
-            }
-          }
-        } else {
-          // 이전 행 중에 같은 이름과 전화번호가 없는 경우
-          Logger.log(
-            `이름과 전화번호가 같은 환자 데이터가 없는 경우: ${entity.name}, ${entity.phone}`,
-            'FileService',
-          );
-          const newMap = new Map<string, Patient>();
-          newMap.set(entity.chart, entity);
-          excelDataMap.set(key, newMap);
-        }
-      }
+      const excelDataMap = await this.runWorker(validEntities);
 
       const elapsedTime = Date.now() - time;
       Logger.log(

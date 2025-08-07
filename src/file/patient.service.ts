@@ -60,45 +60,34 @@ export class PatientService {
     Logger.log(`Updating ${toUpdateList.length} patients`, 'PatientService');
 
     const fields = ['rrm', 'address', 'memo'] as const;
+    const caseClauses = fields
+      .map((field) => {
+        const cases = toUpdateList
+          .map(() => `WHEN name = ? AND phone = ? AND chart = ? THEN ?`)
+          .join(' ');
+        return `${field} = CASE ${cases} ELSE ${field} END`;
+      })
+      .join(', ');
 
-    for (const field of fields) {
-      const recordsToUpdate = toUpdateList.filter(
-        (u) => u[field] !== undefined && u[field] !== null,
-      );
+    const whereConditions = toUpdateList
+      .map(() => `(name = ? AND phone = ? AND chart = ?)`)
+      .join(' OR ');
 
-      if (recordsToUpdate.length === 0) continue;
+    const params = fields
+      .flatMap((field) =>
+        toUpdateList.flatMap((u) => [u.name, u.phone, u.chart, u[field]]),
+      )
+      .concat(toUpdateList.flatMap((u) => [u.name, u.phone, u.chart]));
 
-      const caseClause = recordsToUpdate
-        .map(() => `WHEN name = ? AND phone = ? AND chart = ? THEN ?`)
-        .join(' ');
+    const query = `UPDATE patient SET ${caseClauses} WHERE ${whereConditions}`;
 
-      const whereConditions = toUpdateList
-        .map(() => `(name = ? AND phone = ? AND chart = ?)`)
-        .join(' OR ');
-
-      // 매개변수 순서: CASE 절의 조건과 값들, WHERE 절의 조건들
-      const caseParams = recordsToUpdate.flatMap((u) => [
-        u.name,
-        u.phone,
-        u.chart,
-        u[field],
-      ]);
-      const whereParams = toUpdateList.flatMap((u) => [
-        u.name,
-        u.phone,
-        u.chart,
-      ]);
-
-      const query = `UPDATE patient SET ${field} = CASE ${caseClause} ELSE ${field} END WHERE ${whereConditions}`;
-
-      await this.patientRepository.query(query, [
-        ...caseParams,
-        ...whereParams,
-      ]);
-    }
+    await this.patientRepository.query(query, params);
   }
 
   async insertPatients(toInsertList: Patient[]): Promise<void> {
+    if (!toInsertList || toInsertList.length === 0) {
+      return;
+    }
     Logger.log(`Inserting ${toInsertList.length} patients`, 'PatientService');
     await this.patientRepository.save(toInsertList, { chunk: 1000 });
   }
@@ -109,17 +98,12 @@ export class PatientService {
     }
     Logger.log(`Deleting ${toDeleteList.length} patients`, 'PatientService');
 
-    // 매개변수를 사용하여 SQL 인젝션 방지
-    const whereConditions = toDeleteList
-      .map(() => `(name = ? AND phone = ? AND chart IS NULL)`)
+    const whereClauses = toDeleteList
+      .map(() => '(name = ? AND phone = ?)')
       .join(' OR ');
+    const params = toDeleteList.flatMap((p) => [p.name, p.phone]);
 
-    const params = toDeleteList.flatMap((patient) => [
-      patient.name,
-      patient.phone,
-    ]);
-
-    const query = `DELETE FROM patient WHERE ${whereConditions}`;
+    const query = `DELETE FROM patient WHERE chart IS NULL AND (${whereClauses})`;
 
     await this.patientRepository.query(query, params);
   }
