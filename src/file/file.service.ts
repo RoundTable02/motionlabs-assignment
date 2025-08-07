@@ -1,7 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as fs from 'fs';
-import { Worker } from 'worker_threads';
-import * as path from 'path';
 import {
   UploadResponseDto,
   PatientQueryDto,
@@ -10,7 +8,7 @@ import {
 import { DataValidationService } from './data-validation.service';
 import { PatientService } from './patient.service';
 import { ExcelParsingService } from './excel-parsing.service';
-import { SharedMapService } from 'src/file/shared-map.service';
+import { SharedMapService } from './shared-map.service';
 import { Patient } from './patient.entity';
 
 @Injectable()
@@ -22,32 +20,89 @@ export class FileService {
     private readonly sharedMapService: SharedMapService,
   ) {}
 
-  private runWorker(
+  private processEntities(
     validEntities: Patient[],
-  ): Promise<Map<string, Map<string, Patient>>> {
-    return new Promise((resolve, reject) => {
-      const worker = new Worker(path.join(__dirname, 'file.worker.js'));
+  ): Map<string, Map<string, Patient>> {
+    const excelDataMap = new Map<string, Map<string, Patient>>();
 
-      worker.on('message', (result) => {
-        const resultMap = new Map<string, Map<string, Patient>>();
-        for (const [key, value] of result) {
-          const innerMap = new Map<string, Patient>();
-          for (const [innerKey, innerValue] of value) {
-            innerMap.set(innerKey as string, innerValue as Patient);
+    for (const entity of validEntities) {
+      const key = entity.name + '|' + entity.phone;
+      if (excelDataMap.has(key)) {
+        // 이름과 전화번호가 같은 환자 데이터가 이미 존재하는 경우
+        const dataMap = excelDataMap.get(key) as Map<string, Patient>;
+        if (dataMap.has(entity.chart)) {
+          // 이름과 전화번호가 같고 동일한 차트 명이 있는 경우
+          // 기존 데이터와 병합
+          const existingPatient = dataMap.get(entity.chart) as Patient;
+          const newEntity: Patient = {
+            ...existingPatient,
+            name: entity.name || existingPatient.name,
+            phone: entity.phone || existingPatient.phone,
+            chart: entity.chart || existingPatient.chart,
+            rrm: entity.rrm || existingPatient.rrm,
+            address: entity.address || existingPatient.address,
+            memo: entity.memo || existingPatient.memo,
+            rowNum: entity.rowNum,
+            fileName: existingPatient.fileName,
+          };
+          dataMap.set(newEntity.chart, newEntity);
+          excelDataMap.set(key, dataMap);
+        } else {
+          // 이름과 전화번호가 같지만 동일한 차트 명이 없는 경우
+          if (dataMap.has('')) {
+            // 기존 null & 현재 chart 존재
+            // 기존 데이터는 삭제하고 병합된 데이터로 대체
+            const existingPatient = dataMap.get('') as Patient;
+            dataMap.delete(existingPatient.chart);
+            const newEntity: Patient = {
+              ...existingPatient,
+              name: entity.name || existingPatient.name,
+              phone: entity.phone || existingPatient.phone,
+              chart: entity.chart || existingPatient.chart,
+              rrm: entity.rrm || existingPatient.rrm,
+              address: entity.address || existingPatient.address,
+              memo: entity.memo || existingPatient.memo,
+              rowNum: entity.rowNum,
+              fileName: existingPatient.fileName,
+            };
+            dataMap.set(newEntity.chart, newEntity);
+            excelDataMap.set(key, dataMap);
+          } else {
+            if (!entity.chart) {
+              // 기존 차트 존재 & 현재 차트가 null
+              // 기존 데이터 중 마지막 데이터를 가져와서 병합
+              const valuesArray = [...dataMap.values()];
+              const existingPatient = valuesArray.pop() as Patient;
+              const newEntity: Patient = {
+                ...existingPatient,
+                name: entity.name || existingPatient.name,
+                phone: entity.phone || existingPatient.phone,
+                chart: existingPatient.chart,
+                rrm: entity.rrm || existingPatient.rrm,
+                address: entity.address || existingPatient.address,
+                memo: entity.memo || existingPatient.memo,
+                rowNum: entity.rowNum,
+                fileName: existingPatient.fileName,
+              };
+              dataMap.set(newEntity.chart, newEntity);
+              excelDataMap.set(key, dataMap);
+            } else {
+              // 기존 차트 존재 & 현재 차트가 다른 경우
+              // 새로운 차트 데이터로 추가
+              dataMap.set(entity.chart, entity);
+              excelDataMap.set(key, dataMap);
+            }
           }
-          resultMap.set(key as string, innerMap);
         }
-        resolve(resultMap);
-      });
-      worker.on('error', reject);
-      worker.on('exit', (code) => {
-        if (code !== 0) {
-          reject(new Error(`Worker stopped with exit code ${code}`));
-        }
-      });
-
-      worker.postMessage({ validEntities });
-    });
+      } else {
+        // 이름과 전화번호가 같은 환자 데이터가 없는 경우
+        // 새로운 데이터로 추가
+        const newMap = new Map<string, Patient>();
+        newMap.set(entity.chart, entity);
+        excelDataMap.set(key, newMap);
+      }
+    }
+    return excelDataMap;
   }
 
   async processUpload(filePath: string): Promise<UploadResponseDto> {
@@ -73,7 +128,7 @@ export class FileService {
       const toInsertMap: Map<string, Patient[]> = new Map();
       const toDeleteMap: Map<string, Patient> = new Map();
 
-      const excelDataMap = await this.runWorker(validEntities);
+      const excelDataMap = this.processEntities(validEntities);
 
       const elapsedTime = Date.now() - time;
       Logger.log(

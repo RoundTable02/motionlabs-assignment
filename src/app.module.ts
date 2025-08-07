@@ -4,6 +4,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { FileModule } from './file/file.module';
+import { JobModule } from './job/job.module';
 import { Patient } from './file/patient.entity';
 
 @Module({
@@ -24,6 +25,7 @@ import { Patient } from './file/patient.entity';
       dropSchema: true,
     }),
     FileModule,
+    JobModule,
   ],
   controllers: [AppController],
   providers: [AppService],
