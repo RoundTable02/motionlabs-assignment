@@ -20,7 +20,7 @@ export class DataValidationService {
           name: row.이름 || '',
           phone: row.전화번호?.replaceAll('-', '') || '',
           chart: row.차트번호 || '',
-          rrm: row.주민등록번호 || '',
+          rrm: this.normalizeRRN(row.주민등록번호),
           address: row.주소 || '',
           memo: row.메모 || '',
           rowNum: index + 2,
@@ -67,6 +67,28 @@ export class DataValidationService {
     }
 
     return true;
+  }
+
+  private normalizeRRN(rrn?: string): string {
+    if (!rrn) return '';
+
+    // 하이픈 제거하고 숫자만 추출
+    const digitsOnly = rrn.replace(/[^0-9]/g, '');
+
+    // 6자리: 생년월일만 있는 경우 성별을 0으로 처리
+    if (digitsOnly.length === 6) {
+      return `${digitsOnly}-0`;
+    }
+
+    // 7자리 이상: 생년월일(6자리) + 성별식별값(1자리)
+    if (digitsOnly.length >= 7) {
+      const birthDate = digitsOnly.substring(0, 6);
+      const genderDigit = digitsOnly.substring(6, 7);
+      return `${birthDate}-${genderDigit}`;
+    }
+
+    // 6자리 미만인 경우 빈 문자열 반환
+    return '';
   }
 
   private isValidPhoneNumber(phone: string): boolean {

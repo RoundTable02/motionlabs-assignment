@@ -77,7 +77,6 @@ export class FileService {
           } else {
             // 이름과 전화번호가 같지만 동일한 차트 명이 없는 경우
             if (dataMap.has('')) {
-              // undifined 못 찾나??
               // 기존 null & 현재 chart => 병합, delete, insert
               const existingPatient = dataMap.get('') as Patient;
 
