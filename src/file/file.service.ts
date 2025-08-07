@@ -43,7 +43,7 @@ export class FileService {
       const toInsertMap: Map<string, Patient[]> = new Map();
       const toDeleteMap: Map<string, Patient> = new Map();
 
-      const excelDataMap = new Map<string, Map<string | undefined, Patient>>();
+      const excelDataMap = new Map<string, Map<string, Patient>>();
 
       for (const entity of validEntities) {
         Logger.log(
@@ -53,10 +53,7 @@ export class FileService {
         const key = entity.name + '|' + entity.phone;
         if (excelDataMap.has(key)) {
           // 이전 행 중에 같은 이름과 전화번호가 있는 경우
-          const dataMap = excelDataMap.get(key) as Map<
-            string | undefined,
-            Patient
-          >;
+          const dataMap = excelDataMap.get(key) as Map<string, Patient>;
           if (dataMap.has(entity.chart)) {
             // 이름과 전화번호가 같고 동일한 차트 명이 있는 경우
             const existingPatient = dataMap.get(entity.chart) as Patient;
@@ -79,10 +76,10 @@ export class FileService {
             );
           } else {
             // 이름과 전화번호가 같지만 동일한 차트 명이 없는 경우
-            if (dataMap.has(undefined)) {
+            if (dataMap.has('')) {
               // undifined 못 찾나??
               // 기존 null & 현재 chart => 병합, delete, insert
-              const existingPatient = dataMap.get(undefined) as Patient;
+              const existingPatient = dataMap.get('') as Patient;
 
               dataMap.delete(existingPatient.chart);
 
@@ -149,7 +146,7 @@ export class FileService {
             `이름과 전화번호가 같은 환자 데이터가 없는 경우: ${entity.name}, ${entity.phone}`,
             'FileService',
           );
-          const newMap = new Map<string | undefined, Patient>();
+          const newMap = new Map<string, Patient>();
           newMap.set(entity.chart, entity);
           excelDataMap.set(key, newMap);
         }
@@ -175,7 +172,7 @@ export class FileService {
         if (await this.sharedMapService.has(key)) {
           // 이름과 전화번호가 같은 환자 데이터가 이미 존재하는 경우
           const existingMap = (await this.sharedMapService.get(key)) as Map<
-            string | undefined,
+            string,
             Patient
           >;
           if (existingMap.has(patient.chart)) {
@@ -206,9 +203,9 @@ export class FileService {
           } else {
             // 이름과 전화번호가 같지만 동일한 차트 명이 없는 경우
             if (patient.chart) {
-              if (existingMap.has(undefined)) {
+              if (existingMap.has('')) {
                 // 기존 null & 현재 chart => 병합, delete, insert
-                const existingPatient = existingMap.get(undefined) as Patient;
+                const existingPatient = existingMap.get('') as Patient;
                 const newEntity: Patient = {
                   ...existingPatient,
                   name: patient.name || existingPatient.name,
@@ -221,7 +218,7 @@ export class FileService {
                   fileName: patient.fileName,
                 };
                 toDeleteMap.set(key, newEntity);
-                existingMap.delete(undefined);
+                existingMap.delete('');
                 existingMap.set(patient.chart, newEntity);
               } else {
                 // 기존 chart1 & 현재 chart2 => insert

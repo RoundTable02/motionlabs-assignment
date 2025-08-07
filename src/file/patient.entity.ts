@@ -12,7 +12,7 @@ export class Patient {
   phone: string;
 
   @Column()
-  chart?: string;
+  chart: string;
 
   @Column()
   rrm?: string; // 주민등록번호
