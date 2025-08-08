@@ -17,10 +17,7 @@ import { JobModule } from '../job/job.module';
     DataValidationService,
     PatientService,
     ExcelParsingService,
-    {
-      provide: SharedMapService,
-      useFactory: () => SharedMapService.getInstance(),
-    },
+    SharedMapService,
   ],
 })
 export class FileModule {}

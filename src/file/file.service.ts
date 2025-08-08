@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import * as fs from 'fs';
 import {
   UploadResponseDto,
@@ -106,18 +106,7 @@ export class FileService {
   }
 
   async processUpload(filePath: string): Promise<UploadResponseDto> {
-    const time = Date.now();
     try {
-      const allMaps = await this.sharedMapService.getAll();
-      const totalEntries = Array.from(allMaps.values()).reduce(
-        (acc, map) => acc + map.size,
-        0,
-      );
-      Logger.log(
-        `처리 시작 - SharedMap 키 개수: ${allMaps.size}, 총 환자 데이터: ${totalEntries}`,
-        'FileService',
-      );
-
       const jsonData = this.excelParsingService.parse(filePath);
       const totalRows = jsonData.length;
 
@@ -129,17 +118,6 @@ export class FileService {
       const toDeleteMap: Map<string, Patient> = new Map();
 
       const excelDataMap = this.processEntities(validEntities);
-
-      const elapsedTime = Date.now() - time;
-      Logger.log(
-        `데이터 처리 완료 - 유효한 행: ${validEntities.length}, 건너뛴 행: ${skippedRows}, 소요 시간: ${elapsedTime}ms`,
-        'FileService',
-      );
-
-      Logger.log(
-        `SharedMap에 저장된 환자 데이터 처리 시작 - 총 ${excelDataMap.size} 키`,
-        'FileService',
-      );
 
       const processedData: Patient[] = Array.from(
         excelDataMap.values(),
@@ -258,7 +236,6 @@ export class FileService {
         `Excel 파일 처리 중 오류가 발생했습니다: ${errorMessage}`,
       );
     } finally {
-      Logger.log(`총 소요 시간: ${Date.now() - time}ms`, 'FileService');
       if (fs.existsSync(filePath)) {
         fs.unlinkSync(filePath);
       }
