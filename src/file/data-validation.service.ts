@@ -35,7 +35,7 @@ export class DataValidationService {
     return { validEntities, skippedRows };
   }
 
-  private isValidRow(row: ExcelRowData): boolean {
+  isValidRow(row: ExcelRowData): boolean {
     // 이름 검증: 1~255 문자열 (필수)
     if (!row.이름 || row.이름.trim().length === 0 || row.이름.length > 255) {
       return false;

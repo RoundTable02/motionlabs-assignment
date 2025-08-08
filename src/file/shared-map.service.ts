@@ -4,8 +4,16 @@ import { Patient } from './patient.entity';
 
 @Injectable()
 export class SharedMapService {
+  private static instance: SharedMapService;
   private existingPatientsMap = new Map<string, Map<string, Patient>>();
   private mutex = new Mutex();
+
+  static getInstance(): SharedMapService {
+    if (!SharedMapService.instance) {
+      SharedMapService.instance = new SharedMapService();
+    }
+    return SharedMapService.instance;
+  }
 
   async get(key: string): Promise<Map<string, Patient> | undefined> {
     const release = await this.mutex.acquire();

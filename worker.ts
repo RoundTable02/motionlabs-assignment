@@ -31,7 +31,7 @@ async function initialize(): Promise<{ fileService: FileService }> {
   const patientService = new PatientService(patientRepository);
   const excelParsingService = new ExcelParsingService();
   const dataValidationService = new DataValidationService();
-  const sharedMapService = new SharedMapService();
+  const sharedMapService = SharedMapService.getInstance(); // 싱글톤 사용
 
   const fileService = new FileService(
     excelParsingService,

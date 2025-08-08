@@ -50,11 +50,7 @@ export class FileController {
       throw new BadRequestException('파일이 업로드되지 않았습니다.');
     }
 
-    this.jobService.addJob(file.path);
-
-    return {
-      message: '파일 업로드 요청이 접수되었으며, 백그라운드에서 처리됩니다.',
-    };
+    return this.jobService.addJob(file.path);
   }
 
   @Get('/patients')
