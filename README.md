@@ -4,43 +4,63 @@
 
 ## 실행 방법
 
-### 환경 설정
+### Docker를 이용한 실행 (권장)
 
-1. 환경변수 파일 생성(.env)
+```bash
+docker compose up -d
 
-2. `.env` 파일 설정:
+# 로그 확인
+docker compose ps
+
+# 웹 애플리케이션: http://localhost:3000
+# API 문서: http://localhost:3000/api
+# MySQL: localhost:3306 (사용자: motionlabs, 비밀번호: 1234)
+```
+
+---
+
+### 로컬 환경에서 실행
+
+#### 1. 환경 변수 설정
+
+프로젝트 루트 디렉토리에 `.env` 파일을 생성
 
 ```env
+# 데이터베이스 설정
 DB_HOST=localhost
 DB_PORT=3306
 DB_USERNAME=motionlabs
 DB_PASSWORD=1234
 DB_NAME=motionlabs
+
+# 애플리케이션 설정
+PORT=3000
+NODE_ENV=development
 ```
 
-3. MySQL 데이터베이스 생성:
+#### 2. MySQL 데이터베이스 설정
+
+MySQL에 접속하여 데이터베이스와 사용자를 생성
 
 ```sql
+-- MySQL 접속 후 실행
 CREATE DATABASE motionlabs;
 CREATE USER 'motionlabs'@'localhost' IDENTIFIED BY '1234';
 GRANT ALL PRIVILEGES ON motionlabs.* TO 'motionlabs'@'localhost';
+FLUSH PRIVILEGES;
 ```
 
-### 설치 및 실행
+#### 3. 애플리케이션 설치 및 실행
 
 ```bash
-# 의존성 설치
-npm install
-
-# 개발 서버 실행
+# 메인 애플리케이션 실행
 npm run start:dev
 
-# 워커 프로세스 실행 (별도 터미널)
+# 워커 프로세스 실행
 npm run start:worker
 ```
 
-파일 업로드의 경우, 빠른 응답 처리를 위해 worker 프로세스를 추가하였습니다.
-worker 프로세스에서 sqlite를 통해 추가된 job을 감지하고, upload 과정을 진행합니다.
+> **중요**: 파일 업로드 처리를 위해 메인 애플리케이션과 워커 프로세스를 모두 실행해야 합니다.
 
 ### API 문서
 
@@ -48,7 +68,7 @@ worker 프로세스에서 sqlite를 통해 추가된 job을 감지하고, upload
 
 ## 벤치마크 테스트 결과
 
-벤치마크 테스트는 k6를 통해 진행하였습니다.
+벤치마크 테스트는 k6를 통해 로컬 환경에서 진행하였습니다. (k6-benchmark.js 파일 참고)
 
 ### 업로드 테스트
 

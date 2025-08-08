@@ -1,0 +1,58 @@
+# Docker 빌드 최적화를 위한 파일 제외
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# 빌드 결과물
+dist
+build
+coverage
+
+# 로그 파일
+logs
+*.log
+
+# 환경 설정 파일 (보안상 제외)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# 임시 파일
+.tmp
+.temp
+
+# 업로드 파일 (런타임에 생성)
+uploads/*
+
+# Git 관련
+.git
+.gitignore
+
+# IDE 설정
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS 파일
+.DS_Store
+Thumbs.db
+
+# 테스트 관련
+test
+*.spec.ts
+*.test.ts
+
+# SQLite 파일 (런타임에 생성)
+*.sqlite
+*.db
+
+# 기타
+README.md
+*.md
+docker-compose.yml
+Dockerfile

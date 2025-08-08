@@ -1,0 +1,87 @@
+services:
+  # MySQL 데이터베이스
+  mysql:
+    image: mysql:8.0
+    container_name: motionlabs-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: motionlabs
+      MYSQL_USER: motionlabs
+      MYSQL_PASSWORD: 1234
+    ports:
+      - '3306:3306'
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - motionlabs-network
+    healthcheck:
+      test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost']
+      timeout: 20s
+      retries: 10
+
+  # NestJS 메인 애플리케이션
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: motionlabs-app
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    environment:
+      - NODE_ENV=production
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_USERNAME=motionlabs
+      - DB_PASSWORD=1234
+      - DB_NAME=motionlabs
+      - PORT=3000
+    volumes:
+      - ./uploads:/app/uploads
+      - sqlite_data:/app
+    networks:
+      - motionlabs-network
+    depends_on:
+      mysql:
+        condition: service_healthy
+    command: ['node', 'dist/src/main.js']
+
+  # Worker 프로세스
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: motionlabs-worker
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_USERNAME=motionlabs
+      - DB_PASSWORD=1234
+      - DB_NAME=motionlabs
+    volumes:
+      - ./uploads:/app/uploads
+      - sqlite_data:/app
+    networks:
+      - motionlabs-network
+    depends_on:
+      mysql:
+        condition: service_healthy
+      app:
+        condition: service_started
+    command: ['node', 'dist/worker.js']
+
+volumes:
+  mysql_data:
+    driver: local
+  sqlite_data:
+    driver: local
+
+networks:
+  motionlabs-network:
+    driver: bridge
